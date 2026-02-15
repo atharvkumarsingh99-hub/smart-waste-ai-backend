@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from tensorflow.keras.models import load_model
 from PIL import Image
 import numpy as np
@@ -8,11 +9,20 @@ import os
 
 app = FastAPI()
 
+# Enable CORS (important for Flutter)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 MODEL_PATH = "garbage_classifier.h5"
 model = None
 
 
-# Lazy load model (safer for Render)
+# Lazy load model (safe for Render)
 def get_model():
     global model
     if model is None:
@@ -39,18 +49,25 @@ def home():
 async def predict(file: UploadFile = File(...)):
     try:
         contents = await file.read()
-        image = Image.open(io.BytesIO(contents)).convert("RGB")
+        image = Image.open(io.BytesIO(contents))
+        image = image.convert("RGB")
+
+
         processed_image = preprocess_image(image)
 
         model = get_model()
         prediction = model.predict(processed_image)
 
-        confidence = float(np.max(prediction))
-        class_index = int(np.argmax(prediction))
+        confidence = float(prediction[0][0])
+
+        if confidence > 0.5:
+            label = "Garbage"
+        else:
+            label = "Clean Area"
 
         return {
-            "class_index": class_index,
-            "confidence": confidence
+            "label": label,
+            "confidence": round(confidence, 4)
         }
 
     except Exception as e:
@@ -60,7 +77,7 @@ async def predict(file: UploadFile = File(...)):
         )
 
 
-# IMPORTANT for Render
+# Required for Render
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
