@@ -7,7 +7,7 @@ import io
 app = FastAPI()
 
 # Load model once
-model = load_model("garbageclassifier.h5")
+model = load_model("garbage_classifier.h5")
 
 def preprocess_image(image):
     image = image.resize((224, 224))
